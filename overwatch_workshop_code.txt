@@ -1,0 +1,177 @@
+variables
+{
+global:
+0: MatchTime
+1: TrackHeroSwaps
+2: PlayerSummaryCount
+
+```
+player:
+	0: Logs_LastHero
+	1: Logs_LastHeroTime
+	2: Logs_HeroesPlayedTimeArray
+	3: Logs_HeroesPlayedArray
+	4: Logs_CurrentHeroIterator
+	5: Logs_CurrentHeroIterated
+	6: AddUltElims
+```
+
+}
+
+subroutines
+{
+0: CalcHeroPlayedTime
+}
+
+rule("Logs: Startup")
+{
+event
+{
+Ongoing - Global;
+}
+
+```
+actions
+{
+	Log To Inspector(Custom String(",,,,,,,,,,,,,,,,,,,,,,,,,"));
+	Log To Inspector(Custom String("{0}{1}{2}", Custom String("{0},{1},{2},", Current Game Mode, Current Map, Team 1), Custom String(
+		"{0},{1},{2},", Team 2), Custom String("{0},{1},{2}")));
+}
+```
+
+}
+
+rule("Logs: Hero Spawn/Swap")
+{
+event
+{
+Ongoing - Each Player;
+All;
+All;
+}
+
+```
+conditions
+{
+	Hero Of(Event Player) != Event Player.Logs_LastHero;
+	Is Match Complete == False;
+}
+
+actions
+{
+	If(Global.TrackHeroSwaps && Array Contains(All Heroes, Hero Of(Event Player)));
+		If(Array Contains(All Heroes, Event Player.Logs_LastHero));
+			Log To Inspector(Custom String(",hero_swap,{0},{1},{2}", Global.MatchTime, Custom String("{0},{1}", Team Of(Event Player),
+				Event Player), Custom String("{0},{1},{2}", Hero Of(Event Player), Event Player.Logs_LastHero,
+				Global.MatchTime - Event Player.Logs_LastHeroTime)));
+		Else;
+			Log To Inspector(Custom String(",hero_spawn,{0},{1},{2}", Global.MatchTime, Custom String("{0},{1}", Team Of(Event Player),
+				Event Player), Custom String("{0},{1},{2}", Hero Of(Event Player), Event Player.Logs_LastHero,
+				Global.MatchTime - Event Player.Logs_LastHeroTime)));
+		End;
+	End;
+	If(!Array Contains(Event Player.Logs_HeroesPlayedArray, Hero Of(Event Player)) && Array Contains(All Heroes, Hero Of(
+		Event Player)));
+		Modify Player Variable(Event Player, Logs_HeroesPlayedArray, Append To Array, Hero Of(Event Player));
+	End;
+	If(Array Contains(All Heroes, Hero Of(Event Player)) && Array Contains(All Heroes, Event Player.Logs_LastHero));
+		Call Subroutine(CalcHeroPlayedTime);
+	End;
+	Event Player.Logs_LastHero = Hero Of(Event Player);
+	Event Player.Logs_LastHeroTime = Global.MatchTime;
+}
+```
+
+}
+
+rule("Logs SUBR: Calculate Hero Played Time")
+{
+event
+{
+Subroutine;
+CalcHeroPlayedTime;
+}
+
+```
+actions
+{
+	Event Player.Logs_HeroesPlayedTimeArray[Index Of Array Value(Event Player.Logs_HeroesPlayedArray, Event Player.Logs_LastHero)
+		] += Global.MatchTime - Event Player.Logs_LastHeroTime;
+}
+```
+
+}
+
+rule("Logs: Player Stat Summary")
+{
+event
+{
+Ongoing - Each Player;
+All;
+All;
+}
+
+```
+conditions
+{
+	Is Match Complete == True;
+}
+
+actions
+{
+	Call Subroutine(CalcHeroPlayedTime);
+	Event Player.Logs_LastHero = Hero Of(Event Player);
+	Event Player.Logs_LastHeroTime = Global.MatchTime;
+	For Player Variable(Event Player, Logs_CurrentHeroIterator, 0, Count Of(Event Player.Logs_HeroesPlayedArray), 1);
+		Event Player.Logs_CurrentHeroIterated = Event Player.Logs_HeroesPlayedArray[Event Player.Logs_CurrentHeroIterator];
+		Log To Inspector(Custom String(",{0},{1},{2}", Custom String("{0},{1}", Global.MatchTime), Custom String("{0},{1},{2}", Team Of(
+			Event Player), Event Player, Event Player.Logs_CurrentHeroIterated), Custom String("{0},{1}", Custom String("{0},{1},{2}",
+			Custom String("{0},{1},{2}", Custom String("{0},{1},{2}", Player Hero Stat(Event Player, Event Player.Logs_CurrentHeroIterated,
+			Eliminations), Player Hero Stat(Event Player, Event Player.Logs_CurrentHeroIterated, Final Blows), Player Hero Stat(
+			Event Player, Event Player.Logs_CurrentHeroIterated, Deaths)), Custom String("{0},{1},{2}", Player Hero Stat(Event Player,
+			Event Player.Logs_CurrentHeroIterated, All Damage Dealt), Player Hero Stat(Event Player, Event Player.Logs_CurrentHeroIterated,
+			Barrier Damage Dealt), Player Hero Stat(Event Player, Event Player.Logs_CurrentHeroIterated, Hero Damage Dealt)),
+			Custom String("{0},{1}", Player Hero Stat(Event Player, Event Player.Logs_CurrentHeroIterated, Healing Dealt),
+			Player Hero Stat(Event Player, Event Player.Logs_CurrentHeroIterated, Healing Received))), Custom String("{0},{1},{2}",
+			Custom String("{0},{1}", Player Hero Stat(Event Player, Event Player.Logs_CurrentHeroIterated, Damage Taken), Player Hero Stat(
+			Event Player, Event Player.Logs_CurrentHeroIterated, Damage Blocked)), Null, Custom String("{0},{1}", Player Hero Stat(
+			Event Player, Event Player.Logs_CurrentHeroIterated, Ultimates Earned), Player Hero Stat(Event Player,
+			Event Player.Logs_CurrentHeroIterated, Ultimates Used))), Custom String("{0}", Custom String("{2}", Null, Null,
+			Player Hero Stat(Event Player, Event Player.Logs_CurrentHeroIterated, Solo Kills)))), Custom String("{0},{1}", Custom String(
+			"{0},{1},{2}", Custom String("{0},{1}", Player Hero Stat(Event Player, Event Player.Logs_CurrentHeroIterated,
+			Critical Hit Accuracy), Player Hero Stat(Event Player, Event Player.Logs_CurrentHeroIterated, Scoped Accuracy)), Custom String(
+			"{0},{1},{2}", Player Hero Stat(Event Player, Event Player.Logs_CurrentHeroIterated, Scoped Critical Hit Accuracy),
+			Player Hero Stat(Event Player, Event Player.Logs_CurrentHeroIterated, Weapon Accuracy),
+			Event Player.Logs_HeroesPlayedTimeArray[Event Player.Logs_CurrentHeroIterator]), Event Player.AddUltElims)))));
+		Log To Inspector(Custom String("-----"));
+	End;
+	Global.PlayerSummaryCount += 1;
+	Wait(1, Ignore Condition);
+	Loop;
+}
+```
+
+}
+
+rule("Track Ult Kills")
+{
+event
+{
+Player Earned Elimination;
+All;
+All;
+}
+
+```
+conditions
+{
+	Is Using Ultimate(Event Player) == True;
+}
+
+actions
+{
+	Event Player.AddUltElims += 1;
+}
+```
+
+}
