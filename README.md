@@ -1,4 +1,4 @@
-# Overwatch Broadcast Stats Pipeline
+# Overwatch Broadcast Stats Pipeline | LAN/T.O. ONLY
 
 A lightweight Python pipeline that reads Overwatch Workshop log files in real time and writes live player stats as structured data files for use in broadcast production tools like vMix, Singular.live, or any system that can consume JSON or plain text files.
 
